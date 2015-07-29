@@ -8,9 +8,9 @@ class GZipCSVReader:
 
     Taken from http://stackoverflow.com/questions/9252812/using-csvreader-against-a-gzipped-file-in-python
     """
-    def __init__(self, filename):
+    def __init__(self, filename, fieldnames=[]):
         self.gzfile = gzip.open(filename)
-        self.reader = csv.DictReader(self.gzfile)
+        self.reader = csv.DictReader(self.gzfile, fieldnames)
 
     def next(self):
         return self.reader.next()
