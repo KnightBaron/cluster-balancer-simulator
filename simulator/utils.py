@@ -1,5 +1,6 @@
 import csv
 import gzip
+from itertools import izip_longest
 
 
 class GZipCSVReader:
@@ -20,3 +21,14 @@ class GZipCSVReader:
 
     def __iter__(self):
         return self.reader.__iter__()
+
+
+def grouper(iterable, n, fillvalue=None):
+    """
+    grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx
+
+    Taken from https://docs.python.org/2.7/library/itertools.html#recipes
+    """
+    "Collect data into fixed-length chunks or blocks"
+    args = [iter(iterable)] * n
+    return izip_longest(fillvalue=fillvalue, *args)
