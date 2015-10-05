@@ -1,4 +1,3 @@
-import sqlsoup
 import logging
 from sqlalchemy.engine import create_engine
 from sqlalchemy.sql import text
@@ -48,8 +47,9 @@ TABLES = {
 STRING_HASH_FIELDS = [
     "user", "job_name", "logical_job_name", "platform_id", "attribute_name",
     "attribute_value"]
-DB_CONNECTION = "mysql+mysqldb://simulator:HKrbM34ChPcsHe@163.221.29.174/google?charset=utf8mb4"
-DATA_PATH = "/home/knightbaron/cluster-balancer-simulator/data/clusterdata-2011-2/"  # Don't forget trailing slash
+# DB_CONNECTION = "mysql+mysqldb://simulator:HKrbM34ChPcsHe@163.221.29.174/google?charset=utf8mb4"
+DB_CONNECTION = "mysql+mysqldb://simulator:HKrbM34ChPcsHe@127.0.0.1/google?charset=utf8mb4"
+DATA_PATH = "/home/knightbaron/data/clusterdata-2011-2/"  # Don't forget trailing slash
 INSERT_PER_QUERY = 1000
 DRY_RUN = False
 logging.basicConfig(
@@ -81,7 +81,7 @@ def prepare_value(value, column):
         if value != "":  # Number with actual value
             return value
         else:  # Number represented as empty string, use NULL instead
-            if column == "diffrent_machines_restriction":
+            if column == "different_machines_restriction":
                 # The only column that do not accept NULL, default to 0 instead
                 return "0"
             else:
@@ -93,8 +93,18 @@ if __name__ == "__main__":
     connection = db.connect()
 
     for table_name in TABLES:
+
+        # Reprocess task_events
+        if table_name != "task_events":
+            continue
+
         total_parts = TABLES[table_name]["total_parts"]
         for part in range(total_parts):
+
+            # Skip processed task_events
+            if part < 225:
+                continue
+
             filepath = "%s%s/part-%05d-of-%05d.csv.gz" % (
                 DATA_PATH, table_name, part, total_parts)
             logging.info("Processing: %s" % filepath)
