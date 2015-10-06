@@ -43,13 +43,21 @@ TABLES = {
             "memory_accesses_per_instruction", "sample_portion",
             "aggregation_type", "sampled_cpu_usage"], },
 }
-
 STRING_HASH_FIELDS = [
     "user", "job_name", "logical_job_name", "platform_id", "attribute_name",
     "attribute_value"]
-# DB_CONNECTION = "mysql+mysqldb://simulator:HKrbM34ChPcsHe@163.221.29.174/google?charset=utf8mb4"
-DB_CONNECTION = "mysql+mysqldb://simulator:HKrbM34ChPcsHe@127.0.0.1/google?charset=utf8mb4"
-DATA_PATH = "/home/knightbaron/data/clusterdata-2011-2/"  # Don't forget trailing slash
+TASK_SCHEMA = [
+    "start_time", "end_time",  # "duration" will be calculated at the end
+    # "cpu_request", "memory_request", "disk_space_request",
+    "cpu_rate", "canonical_memory_usage", "assigned_memory_usage",
+    "upmapped_page_cache", "total_page_cache", "maximum_memory_usage",
+    "disk_io_time", "local_disk_space_usage", "maximum_cpu_rate",
+    "maximum_disk_io_time", "cycles_per_instruction",
+    "memory_accesses_per_instruction",
+]
+DB_CONNECTION = "mysql+mysqldb://simulator:HKrbM34ChPcsHe@163.221.29.174/google?charset=utf8mb4"
+# DB_CONNECTION = "mysql+mysqldb://simulator:HKrbM34ChPcsHe@127.0.0.1/google?charset=utf8mb4"
+DATA_PATH = "/home/knightbaron/cluster-balancer-simulator/data/clusterdata-2011-2/"  # Don't forget trailing slash
 INSERT_PER_QUERY = 1000
 DRY_RUN = False
 logging.basicConfig(
@@ -65,94 +73,75 @@ def execute(query, connection):
         return connection.execute(text(query))
 
 
-def insert_ids(ids, table_name, connection):
-    query = "INSERT IGNORE INTO `{0}` (`id`) VALUES {1};".format(
-        table_name,
-        ", ".join(("({0})".format(n) for n in ids)))
-    execute(query, connection)
-
-
-def prepare_value(value, column):
-    if column in STRING_HASH_FIELDS:
-        # For string, empty string is accepted, just wrap with single quote
-        return "'{0}'".format(value)
-    else:
-        # For number, NULL may be used
-        if value != "":  # Number with actual value
-            return value
-        else:  # Number represented as empty string, use NULL instead
-            if column == "different_machines_restriction":
-                # The only column that do not accept NULL, default to 0 instead
-                return "0"
-            else:
-                return "NULL"
-
-
 if __name__ == "__main__":
     db = create_engine(DB_CONNECTION)
     connection = db.connect()
 
-    for table_name in TABLES:
+    ##
+    # Read and process data from csv
+    ##
 
-        # Reprocess task_events
-        if table_name != "task_events":
-            continue
+    table_name = "task_usage"
+    total_parts = TABLES[table_name]["total_parts"]
+    tasks = {}
+    for part in range(total_parts):
 
-        total_parts = TABLES[table_name]["total_parts"]
-        for part in range(total_parts):
+        filepath = "%s%s/part-%05d-of-%05d.csv.gz" % (
+            DATA_PATH, table_name, part, total_parts)
+        logging.info("Processing: %s" % filepath)
 
-            # Skip processed task_events
-            if part < 225:
-                continue
+        csv = GZipCSVReader(filepath, TABLES[table_name]["schema"])
 
-            filepath = "%s%s/part-%05d-of-%05d.csv.gz" % (
-                DATA_PATH, table_name, part, total_parts)
-            logging.info("Processing: %s" % filepath)
+        for entry in csv:
+            key = (entry["job_id"], entry["task_index"])
 
-            # 1st pass: insert jobs and machines
-            logging.info("Inserting jobs and machines...")
-            csv = GZipCSVReader(filepath, TABLES[table_name]["schema"])
+            if key not in tasks:  # First usage log
 
-            jobs = set()  # Contain string representation of number
-            machines = set()  # Contain string representation of number
+                # Create new task
+                task = {}
+                for field in TASK_SCHEMA:
+                    if (field == "start_time") or (field == "end_time"):
+                        task[field] = long(entry[field])
+                    else:
+                        if entry[field] != "":
+                            task[field] = {
+                                "count": 1,
+                                "value": float(entry[field]),
+                            }
+                        else:
+                            task[field] = {
+                                "count": 0,
+                                "value": 0.0,
+                            }
+                task["duration"] = task["end_time"] - task["start_time"]
 
-            for entry in csv:
-                if ("job_id" in entry) and (entry["job_id"] != ""):
-                    jobs.add(entry["job_id"])
-                    if len(jobs) >= INSERT_PER_QUERY:
-                        insert_ids(jobs, "jobs", connection)
-                        jobs = set()
-                if ("machine_id" in entry) and (entry["machine_id"] != ""):
-                    machines.add(entry["machine_id"])
-                    if len(machines) >= INSERT_PER_QUERY:
-                        insert_ids(machines, "machines", connection)
-                        machines = set()
-            if len(jobs) > 0:
-                insert_ids(jobs, "jobs", connection)
-                jobs = set()
-            if len(machines) > 0:
-                insert_ids(machines, "machines", connection)
-                machines = set()
+                tasks[key] = task  # Add new task to tasks dict
 
-            csv.close()
+            else:  # Subsequence usage log
 
-            # 2nd pass: insert everything else
-            logging.info("Inserting contents...")
-            csv = GZipCSVReader(filepath, TABLES[table_name]["schema"])
+                # Update task in tasks dict
+                for field in TASK_SCHEMA:
+                    if field == "start_time":
+                        new_start_time = float(entry["start_time"])
+                        if tasks[key]["start_time"] > new_start_time:
+                            tasks[key]["start_time"] = new_start_time
+                    elif field == "end_time":
+                        new_end_time = float(entry["end_time"])
+                        if tasks[key]["end_time"] < new_end_time:
+                            tasks[key]["end_time"] = new_end_time
+                    else:
+                        if entry[field] != "":
+                            count = tasks[key][field]["count"] + 1
+                            tasks[key][field] = {
+                                "count": count,
+                                # Recursive time average formula
+                                # http://people.revoledu.com/kardi/tutorial/RecursiveStatistic/Time-Average.htm
+                                "value": (((count - 1) / count) * tasks[key][field]["value"]) + (float(entry[field]) / count)
+                            }
+                tasks[key]["duration"] = tasks[key]["end_time"] - tasks[key]["start_time"]
 
-            # for entries in grouper(csv, INSERT_PER_QUERY):
-            for entries in grouper(csv, 3):
-                # BE CAREFUL! Grouper add None(s) to fill the last group
-                query = "INSERT INTO `{0}` ({1}) VALUES {2};".format(
-                    table_name,
-                    ", ".join(("`{0}`".format(c) for c in TABLES[table_name]["schema"])),
-                    ", ".join((  # Generator
-                        "({0})".format(
-                            ", ".join((  # Generator
-                                prepare_value(entry[column], column)
-                                for column in TABLES[table_name]["schema"])))
-                        for entry in entries
-                        if entry is not None)))
-                execute(query, connection)
+        csv.close()
 
-            csv.close()
+    ##
+    # Insert tasks to DB
+    ##
