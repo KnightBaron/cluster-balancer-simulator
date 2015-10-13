@@ -74,13 +74,19 @@ def execute(query, connection):
 
 
 def insert_keys(keys, connection):
-    for column in TASK_SCHEMA:
-        query = "INSERT IGNORE INTO `counter` (`job_id`, `task_index`, `column`) VALUES {};".format(
-            ", ".join((  # Generator
-                "({})".format(
-                    "{0}, {1}, '{2}'".format(key[0], key[1], column)
-                ) for key in keys)))
-        execute(query, connection)
+    query = "INSERT IGNORE INTO `counter` (`job_id`, `task_index`) VALUES {};".format(
+        ", ".join((  # Generator
+            "({})".format(
+                "{0}, {1}".format(key[0], key[1])
+            ) for key in keys)))
+    execute(query, connection)
+
+    query = "INSERT IGNORE INTO `tasks` (`job_id`, `task_index`) VALUES {};".format(
+        ", ".join((  # Generator
+            "({})".format(
+                "{0}, {1}".format(key[0], key[1])
+            ) for key in keys)))
+    execute(query, connection)
 
 
 if __name__ == "__main__":
@@ -110,6 +116,6 @@ if __name__ == "__main__":
                 keys = set()
         if len(keys) > 0:
             insert_keys(keys, connection)
-            jobs = set()
+            keys = set()
 
         csv.close()

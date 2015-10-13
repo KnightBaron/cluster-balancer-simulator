@@ -37,7 +37,7 @@ TABLES = {
         "schema": [
             "start_time", "end_time", "job_id", "task_index", "machine_id",
             "cpu_rate", "canonical_memory_usage", "assigned_memory_usage",
-            "upmapped_page_cache", "total_page_cache", "maximum_memory_usage",
+            "unmapped_page_cache", "total_page_cache", "maximum_memory_usage",
             "disk_io_time", "local_disk_space_usage", "maximum_cpu_rate",
             "maximum_disk_io_time", "cycles_per_instruction",
             "memory_accesses_per_instruction", "sample_portion",
@@ -50,7 +50,7 @@ TASK_SCHEMA = [
     "start_time", "end_time",  # "duration" will be calculated at the end
     # "cpu_request", "memory_request", "disk_space_request",
     "cpu_rate", "canonical_memory_usage", "assigned_memory_usage",
-    "upmapped_page_cache", "total_page_cache", "maximum_memory_usage",
+    "unmapped_page_cache", "total_page_cache", "maximum_memory_usage",
     "disk_io_time", "local_disk_space_usage", "maximum_cpu_rate",
     "maximum_disk_io_time", "cycles_per_instruction",
     "memory_accesses_per_instruction",
@@ -58,11 +58,12 @@ TASK_SCHEMA = [
 DB_CONNECTION = "mysql+mysqldb://simulator:HKrbM34ChPcsHe@163.221.29.174/google?charset=utf8mb4"
 # DB_CONNECTION = "mysql+mysqldb://simulator:HKrbM34ChPcsHe@127.0.0.1/google?charset=utf8mb4"
 DATA_PATH = "/home/knightbaron/cluster-balancer-simulator/data/clusterdata-2011-2/"  # Don't forget trailing slash
-INSERT_PER_QUERY = 1000
+INSERT_PER_QUERY = 800000  # Actually, UPDATE_PER_TRANSACTION
 DRY_RUN = False
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO)
+# level=logging.DEBUG)
 
 
 def execute(query, connection):
@@ -113,7 +114,6 @@ if __name__ == "__main__":
                                 "count": 0,
                                 "value": 0.0,
                             }
-                task["duration"] = task["end_time"] - task["start_time"]
 
                 tasks[key] = task  # Add new task to tasks dict
 
@@ -131,17 +131,98 @@ if __name__ == "__main__":
                             tasks[key]["end_time"] = new_end_time
                     else:
                         if entry[field] != "":
-                            count = tasks[key][field]["count"] + 1
-                            tasks[key][field] = {
-                                "count": count,
-                                # Recursive time average formula
-                                # http://people.revoledu.com/kardi/tutorial/RecursiveStatistic/Time-Average.htm
-                                "value": (((count - 1) / count) * tasks[key][field]["value"]) + (float(entry[field]) / count)
-                            }
-                tasks[key]["duration"] = tasks[key]["end_time"] - tasks[key]["start_time"]
+                            tasks[key][field]["count"] += 1
+                            tasks[key][field]["value"] += float(entry[field])
+
+            # Update DB every INSERT_PER_QUERY
+            if len(tasks) > (INSERT_PER_QUERY / 4):  # Divide by # of query per task
+
+                modified_task_schema = list(TASK_SCHEMA)
+                modified_task_schema.remove("start_time")
+                modified_task_schema.remove("end_time")
+
+                logging.info("Start transaction of {} update(s)...".format(INSERT_PER_QUERY))
+                with connection.begin() as transaction:
+                    for key in tasks:
+
+                        # Update counter
+                        query = "UPDATE `counter` SET {0} WHERE `job_id`={1} \
+                            AND `task_index`={2};".format(
+                            ", ".join((  # Generator
+                                "`{0}`=`{0}`+{1}".format(f, tasks[key][f]["count"]) for f in modified_task_schema
+                            )),
+                            key[0], key[1])
+                        execute(query, connection)
+
+                        # Update start_time and end_time
+                        query = "UPDATE `tasks` SET `start_time`={0} \
+                            WHERE `job_id`={1} AND `task_index`={2} \
+                            AND `start_time`>{0};".format(
+                            tasks[key]["start_time"],
+                            key[0], key[1])
+                        execute(query, connection)
+                        query = "UPDATE `tasks` SET `end_time`={0} \
+                            WHERE `job_id`={1} AND `task_index`={2} \
+                            AND `end_time`<{0};".format(
+                            tasks[key]["end_time"],
+                            key[0], key[1])
+                        execute(query, connection)
+
+                        # Update task
+                        query = "UPDATE `tasks` SET {0} WHERE `job_id`={1} \
+                            AND `task_index`={2};".format(
+                            ", ".join((  # Generator
+                                "`{0}`=`{0}`+{1:.14e}".format(f, tasks[key][f]["value"]) for f in modified_task_schema
+                            )),
+                            key[0], key[1])
+                        execute(query, connection)
+
+                logging.info("Committed.")
+                tasks = {}  # Reset tasks
 
         csv.close()
 
-    ##
-    # Insert tasks to DB
-    ##
+    if len(tasks) > 0:
+        # Commit the last batch
+        modified_task_schema = list(TASK_SCHEMA)
+        modified_task_schema.remove("start_time")
+        modified_task_schema.remove("end_time")
+
+        logging.info("Start transaction of {} update(s)...".format(len(tasks)))
+        with connection.begin() as transaction:
+            for key in tasks:
+
+                # Update counter
+                query = "UPDATE `counter` SET {0} WHERE `job_id`={1} \
+                    AND `task_index`={2};".format(
+                    ", ".join((  # Generator
+                        "`{0}`=`{0}`+{1}".format(f, tasks[key][f]["count"]) for f in modified_task_schema
+                    )),
+                    key[0], key[1])
+                execute(query, connection)
+
+                # Update start_time and end_time
+                query = "UPDATE `tasks` SET `start_time`={0} \
+                    WHERE `job_id`={1} AND `task_index`={2} \
+                    AND `start_time`>{0};".format(
+                    tasks[key]["start_time"],
+                    key[0], key[1])
+                execute(query, connection)
+                query = "UPDATE `tasks` SET `end_time`={0} \
+                    WHERE `job_id`={1} AND `task_index`={2} \
+                    AND `end_time`<{0};".format(
+                    tasks[key]["end_time"],
+                    key[0], key[1])
+                execute(query, connection)
+
+                # Update task
+                query = "UPDATE `tasks` SET {0} WHERE `job_id`={1} \
+                    AND `task_index`={2};".format(
+                    ", ".join((  # Generator
+                        "`{0}`=`{0}`+{1:.14e}".format(f, tasks[key][f]["value"]) for f in modified_task_schema
+                    )),
+                    key[0], key[1])
+                execute(query, connection)
+
+        logging.info("Committed.")
+        tasks = {}  # Reset tasks
