@@ -4,7 +4,16 @@ from simulator.utils import merge_two_dicts
 
 class GoogleJob(object):
     """docstring for GoogleJob"""
-    pass
+    def __init__(self, db):
+        self.db = db
+        self.jobs = self._load_jobs()
+
+    def _load_jobs(self):
+        # TODO: WRITE ME
+        return []
+
+    def generator(self):
+        return iter(self.jobs)
 
 
 class TsubameJob(object):
