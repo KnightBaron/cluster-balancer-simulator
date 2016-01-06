@@ -42,7 +42,7 @@ class GoogleJob(object):
                         "machine_id": None,
                     }]
                 }
-            elif job["job_id"] == entry["job_id"]:  # Subsequence iterations of each job
+            elif job["job_id"] == long(entry["job_id"]):  # Subsequence iterations of each job
                 job["tasks"].append({
                     "task_index": long(entry["task_index"]),
                     "allocated_cpu": float(entry["cpu_request"]),

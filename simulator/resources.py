@@ -17,13 +17,23 @@ class RandomAccessFilterStore(FilterStore):
 
 class Machine(object):
     """docstring for Machine"""
-    def __init__(self, env, cpu, memory):
+    def __init__(self, env, cpu, memory, overcommit_factor=1):
         self.cpu = cpu
-        self.memory = memory
-        self.allocated_cpu = simpy.Container(env, init=0.0, capacity=cpu)
-        self.allocated_memory = simpy.Container(env, init=0.0, capacity=memory)
+        self.adjusted_cpu = cpu * overcommit_factor
+        self.allocated_cpu = simpy.Container(env, init=0.0, capacity=self.adjusted_cpu)
         self.actual_cpu = simpy.Container(env, init=0.0, capacity=cpu)
-        self.actual_memory = simpy.Container(env, init=0.0, capacity=memory)
+        # self.memory = memory
+        # self.allocated_memory = simpy.Container(env, init=0.0, capacity=memory)
+        # self.actual_memory = simpy.Container(env, init=0.0, capacity=memory)
+
+    def __str__(self):
+        return self.__unicode__()
+
+    def __unicode__(self):
+        return "Allocated: {}/{}, Actual: {}/{}".format(
+            self.allocated_cpu.level, self.allocated_cpu.capacity,
+            self.actual_cpu.level, self.actual_cpu.capacity
+        )
 
     def is_fit(self, task):
         """
