@@ -26,9 +26,27 @@ class Machine(object):
         self.actual_memory = simpy.Container(env, init=0.0, capacity=memory)
 
     def is_fit(self, task):
-        """Task is a dict"""
+        """
+        Check whether task could fit
+
+        Task is a dict
+        Compare only CPU for now
+        """
         return (
             ((self.cpu - self.allocated_cpu.level) > task["allocated_cpu"]) and
-            ((self.memory - self.allocated_memory.level) > task["allocated_memory"]) and
-            ((self.cpu - self.actual_cpu.level) > task["actual_cpu"]) and
-            ((self.memory - self.actual_memory.level) > task["actual_memory"]))
+            ((self.cpu - self.actual_cpu.level) > task["actual_cpu"])
+            # ((self.memory - self.allocated_memory.level) > task["allocated_memory"]) and
+            # ((self.memory - self.actual_memory.level) > task["actual_memory"])
+        )
+
+    def add_task(self, task):
+        if task["allocated_cpu"] > 0:
+            yield self.allocated_cpu.put(task["allocated_cpu"])
+        if task["actual_cpu"] > 0:
+            yield self.actual_cpu.put(task["actual_cpu"])
+
+    def remove_task(self, task):
+        if task["allocated_cpu"] > 0:
+            yield self.allocated_cpu.get(task["allocated_cpu"])
+        if task["actual_cpu"] > 0:
+            yield self.actual_cpu.get(task["actual_cpu"])

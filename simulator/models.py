@@ -1,19 +1,70 @@
+import logging
 import numpy.random
-from simulator.utils import merge_two_dicts
+from settings import TRACEFILE
+from simulator.utils import merge_two_dicts, GZipCSVReader
 
 
 class GoogleJob(object):
     """docstring for GoogleJob"""
+    SCHEMA = [
+        "job_id", "task_index", "time", "duration",
+        "cpu_request", "memory_request", "average_cpu_rate",
+        "average_canonical_memory_usage",
+        "different_machines_restriction"
+    ]
+
     def __init__(self, db):
         self.db = db
-        self.jobs = self._load_jobs()
-
-    def _load_jobs(self):
-        # TODO: WRITE ME
-        return []
 
     def generator(self):
-        return iter(self.jobs)
+        """
+        Load jobs/tasks from preprocessed Google's trace
+
+        The algorithm assume that tasks are sorted by time, job_id, task_index
+        ascending
+        """
+        csv = GZipCSVReader(TRACEFILE, GoogleJob.SCHEMA)
+
+        job = None
+        for entry in csv:
+            # logging.debug(entry)
+            # raw_input()
+
+            if job is None:  # 1st iteration
+                job = {
+                    "job_id": long(entry["job_id"]),
+                    "start_time": long(entry["time"]),
+                    "tasks": [{
+                        "task_index": long(entry["task_index"]),
+                        "allocated_cpu": float(entry["cpu_request"]),
+                        "actual_cpu": float(entry["average_cpu_rate"]),
+                        "duration": long(entry["duration"]),
+                        "machine_id": None,
+                    }]
+                }
+            elif job["job_id"] == entry["job_id"]:  # Subsequence iterations of each job
+                job["tasks"].append({
+                    "task_index": long(entry["task_index"]),
+                    "allocated_cpu": float(entry["cpu_request"]),
+                    "actual_cpu": float(entry["average_cpu_rate"]),
+                    "duration": long(entry["duration"]),
+                    "machine_id": None,
+                })
+            else:  # Finished loading an entire job, start loading new job
+                yield job
+                job = {
+                    "job_id": long(entry["job_id"]),
+                    "start_time": long(entry["time"]),
+                    "tasks": [{
+                        "task_index": long(entry["task_index"]),
+                        "allocated_cpu": float(entry["cpu_request"]),
+                        "actual_cpu": float(entry["average_cpu_rate"]),
+                        "duration": long(entry["duration"]),
+                        "machine_id": None,
+                    }]
+                }
+
+        yield job  # Last job in the trace
 
 
 class TsubameJob(object):
