@@ -10,19 +10,34 @@ class Scheduler(object):
         self.env = env
         self.job_class = job_class
         self.job_tracker = {}
+        self.task_tracker = []
         self.machines = machines
         self.job_queue = simpy.Store(env)
         self.producer_proc = env.process(self.producer())
         self.scheduler_proc = env.process(self.scheduler())
+        self.balancer_proc = env.process(self.rebalancer())
+        self.stats = {
+            "jobs": 0,
+            "tasks": 0,
+            "finished_jobs": 0,
+            "finished_tasks": 0,
+            "service_tasks": 0,
+        }
 
     def get_success_rate(self):
-        success = 0.0
-        for job_id in self.job_tracker:
-            if self.job_tracker[job_id]:
-                success += 1
-        return success / len(self.job_tracker)
+        return float(self.stats["finished_jobs"]) / self.stats["jobs"]
+
+    def rebalancer(self):
+        """
+        Task Rebalancer Process
+        """
+        while True:
+            yield self.env.timeout(REBALANCE_TIME)
 
     def producer(self):
+        """
+        Job Producer Process
+        """
         job_counter = 0
         for job in self.job_class.generator():
             if job["start_time"] > self.env.now:
@@ -31,6 +46,11 @@ class Scheduler(object):
             logging.debug("{} => Submit job {}".format(self.env.now, job["job_id"]))
             logging.info("{} => Submitted jobs: {}/{}".format(self.env.now, job_counter, TOTAL_JOBS))
             self.job_tracker[job["job_id"]] = False
+            self.stats["jobs"] += 1
+            for task in job["tasks"]:
+                self.stats["tasks"] += 1
+                if task["is_service"]:
+                    self.stats["service_tasks"] += 1
             self.job_queue.put(job)
             # yield self.env.process(self.scheduler())
 
@@ -58,8 +78,12 @@ class Scheduler(object):
         if commit:
             logging.debug("{} => Commit job {}".format(self.env.now, job["job_id"]))
             for task in job["tasks"]:
+                if task["is_service"]:
+                    task["job_id"] = job["job_id"]
+                    self.task_tracker.append(task)
                 self.env.process(self.execute_task(job["job_id"], task))
-                self.job_tracker[job["job_id"]] = True
+            self.job_tracker[job["job_id"]] = True
+            self.stats["finished_jobs"] += 1
         else:  # Rollback
             logging.debug("{} => Rollback job {}".format(self.env.now, job["job_id"]))
             for task in job["tasks"]:
@@ -71,10 +95,11 @@ class Scheduler(object):
         # logging.debug("{} => Start job {} task {}".format(self.env.now, job_id, task["task_index"]))
         yield self.env.timeout(task["duration"])
         # logging.debug("{} => End job {} task {}".format(self.env.now, job_id, task["task_index"]))
-        self.env.process(self.machines[task["machine_id"]].remove_task(task))
-
-
-class Balancer(object):
-    """docstring for Balancer"""
-    def __init__(self):
-        pass
+        for stored_task in self.task_tracker:
+            if (stored_task["job_id"] == job_id) and (stored_task["task_index"] == task["task_index"]):
+                self.task_tracker.remove(stored_task)
+                self.env.process(self.machines[stored_task["machine_id"]].remove_task(task))
+                break
+        else:
+            self.env.process(self.machines[task["machine_id"]].remove_task(task))
+        self.stats["finished_tasks"] += 1

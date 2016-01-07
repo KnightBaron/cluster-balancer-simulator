@@ -1,6 +1,6 @@
 import logging
 import numpy.random
-from settings import TRACEFILE
+from settings import TRACEFILE, SERVICE_TASK_THRESHOLD
 from simulator.utils import merge_two_dicts, GZipCSVReader
 
 
@@ -27,9 +27,6 @@ class GoogleJob(object):
 
         job = None
         for entry in csv:
-            # logging.debug(entry)
-            # raw_input()
-
             if job is None:  # 1st iteration
                 job = {
                     "job_id": long(entry["job_id"]),
@@ -40,6 +37,7 @@ class GoogleJob(object):
                         "actual_cpu": float(entry["average_cpu_rate"]),
                         "duration": long(entry["duration"]),
                         "machine_id": None,
+                        "is_service": (long(entry["duration"]) > SERVICE_TASK_THRESHOLD),
                     }]
                 }
             elif job["job_id"] == long(entry["job_id"]):  # Subsequence iterations of each job
@@ -49,6 +47,7 @@ class GoogleJob(object):
                     "actual_cpu": float(entry["average_cpu_rate"]),
                     "duration": long(entry["duration"]),
                     "machine_id": None,
+                    "is_service": (long(entry["duration"]) > SERVICE_TASK_THRESHOLD),
                 })
             else:  # Finished loading an entire job, start loading new job
                 yield job
@@ -61,6 +60,7 @@ class GoogleJob(object):
                         "actual_cpu": float(entry["average_cpu_rate"]),
                         "duration": long(entry["duration"]),
                         "machine_id": None,
+                        "is_service": (long(entry["duration"]) > SERVICE_TASK_THRESHOLD),
                     }]
                 }
 
