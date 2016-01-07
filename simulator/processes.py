@@ -9,10 +9,18 @@ class Scheduler(object):
     def __init__(self, env, job_class, machines):
         self.env = env
         self.job_class = job_class
+        self.job_tracker = {}
         self.machines = machines
         self.job_queue = simpy.Store(env)
         self.producer_proc = env.process(self.producer())
         self.scheduler_proc = env.process(self.scheduler())
+
+    def get_success_rate(self):
+        success = 0.0
+        for job_id in self.job_tracker:
+            if self.job_tracker[job_id]:
+                success += 1
+        return success / len(self.job_tracker)
 
     def producer(self):
         job_counter = 0
@@ -22,6 +30,7 @@ class Scheduler(object):
             job_counter += 1
             logging.debug("{} => Submit job {}".format(self.env.now, job["job_id"]))
             logging.info("{} => Submitted jobs: {}/{}".format(self.env.now, job_counter, TOTAL_JOBS))
+            self.job_tracker[job["job_id"]] = False
             self.job_queue.put(job)
             # yield self.env.process(self.scheduler())
 
@@ -50,6 +59,7 @@ class Scheduler(object):
             logging.debug("{} => Commit job {}".format(self.env.now, job["job_id"]))
             for task in job["tasks"]:
                 self.env.process(self.execute_task(job["job_id"], task))
+                self.job_tracker[job["job_id"]] = True
         else:  # Rollback
             logging.debug("{} => Rollback job {}".format(self.env.now, job["job_id"]))
             for task in job["tasks"]:

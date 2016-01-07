@@ -22,4 +22,10 @@ if __name__ == "__main__":
         for i in range(TOTAL_MACHINES)]
 
     scheduler = Scheduler(env, job, machines)
-    env.run()
+
+    if SIMULATION_DURATION > 0:
+        env.run(until=10000000000)
+    else:
+        env.run()
+
+    print "SUCCESS RATE: {}".format(scheduler.get_success_rate())
