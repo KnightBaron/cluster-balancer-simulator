@@ -7,7 +7,8 @@ from settings import *
 from simulator.resources import Machine
 from simulator.processes import Scheduler
 
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 if __name__ == "__main__":
     numpy.random.seed = RANDOM_SEED
