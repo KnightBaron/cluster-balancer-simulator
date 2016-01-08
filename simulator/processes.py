@@ -1,6 +1,7 @@
 import logging
 import simpy
 import numpy
+import itertools
 from settings import *
 
 
@@ -15,7 +16,8 @@ class Scheduler(object):
         self.job_queue = simpy.Store(env)
         self.producer_proc = env.process(self.producer())
         self.scheduler_proc = env.process(self.scheduler())
-        self.balancer_proc = env.process(self.rebalancer())
+        if ENABLE_TASK_REBALANCING:
+            self.rebalancer_proc = env.process(self.rebalancer())
         self.stats = {
             "jobs": 0,
             "tasks": 0,
@@ -34,6 +36,58 @@ class Scheduler(object):
         while True:
             yield self.env.timeout(REBALANCE_TIME)
 
+            candidate_mid_pair = None
+            candidate_difference = 0
+
+            for mid_pair in itertools.combinations(range(len(self.machines)), 2):
+                mid_pair = list(mid_pair)
+                mid_pair = sorted(mid_pair, key=lambda x: self.machines[x].actual_cpu.level)
+                machine_lower = self.machines[mid_pair[0]]
+                machine_higher = self.machines[mid_pair[1]]
+                difference = machine_higher.actual_cpu.level - machine_lower.actual_cpu.level
+                if difference > candidate_difference:
+                    candidate_difference = difference
+                    candidate_mid_pair = mid_pair
+
+            if candidate_difference > MACHINE_UTILIZATION_DIFFERENCE_THRESHOLD:
+                lower_machine = self.machines[candidate_mid_pair[0]]
+                higher_machine = self.machines[candidate_mid_pair[1]]
+                lower_tasks = []
+                higher_tasks = []
+                for task in self.task_tracker:
+                    if task["machine_id"] == candidate_mid_pair[0]:
+                        lower_tasks.append(task)
+                    elif task["machine_id"] == candidate_mid_pair[1]:
+                        higher_tasks.append(task)
+
+                candidate_lower_task = None
+                candidate_higher_task = None
+                candidate_difference = 0
+                if (len(lower_tasks) > 0) and (len(higher_tasks) > 0):
+                    for task_pair in itertools.product(lower_tasks, higher_tasks):
+                        lower_task = task_pair[0]
+                        higher_task = task_pair[1]
+                        if ((lower_task["actual_cpu"] < higher_task["actual_cpu"]) and
+                                (abs(lower_task["allocated_cpu"] - higher_task["allocated_cpu"]) < COMPARABLE_TASK_THRESHOLD)):
+                            difference = higher_task["actual_cpu"] - lower_task["actual_cpu"]
+                            if difference > candidate_difference:
+                                candidate_lower_task = lower_task
+                                candidate_higher_task = higher_task
+
+                if (candidate_lower_task is not None) and (candidate_higher_task is not None):
+                    logging.info ("{} => Swapping...".format(self.env.now))
+                    yield self.env.process(lower_machine.remove_task(candidate_lower_task))
+                    yield self.env.process(higher_machine.remove_task(candidate_higher_task))
+                    yield self.env.process(lower_machine.add_task(candidate_higher_task))
+                    yield self.env.process(higher_machine.add_task(candidate_higher_task))
+                    for task in self.task_tracker:
+                        if ((task["job_id"] == lower_task["job_id"]) and
+                                (task["task_index"] == lower_task["task_index"])):
+                            task["machine_id"] = candidate_mid_pair[1]
+                        elif ((task["job_id"] == higher_task["job_id"]) and
+                                (task["task_index"] == higher_task["task_index"])):
+                            task["machine_id"] = candidate_mid_pair[0]
+
     def producer(self):
         """
         Job Producer Process
@@ -44,7 +98,7 @@ class Scheduler(object):
                 yield self.env.timeout(job["start_time"] - self.env.now)
             job_counter += 1
             logging.debug("{} => Submit job {}".format(self.env.now, job["job_id"]))
-            logging.info("{} => Submitted jobs: {}/{}".format(self.env.now, job_counter, TOTAL_JOBS))
+            logging.debug("{} => Submitted jobs: {}/{}".format(self.env.now, job_counter, TOTAL_JOBS))
             self.job_tracker[job["job_id"]] = False
             self.stats["jobs"] += 1
             for task in job["tasks"]:
@@ -76,7 +130,7 @@ class Scheduler(object):
                 commit = False
 
         if commit:
-            logging.debug("{} => Commit job {}".format(self.env.now, job["job_id"]))
+            logging.info("{} => Commit job {}".format(self.env.now, job["job_id"]))
             for task in job["tasks"]:
                 if task["is_service"]:
                     task["job_id"] = job["job_id"]
