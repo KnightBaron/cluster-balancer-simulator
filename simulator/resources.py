@@ -4,15 +4,15 @@ from simpy.resources.store import FilterStore
 
 
 # TODO: Remove this if unused...
-class RandomAccessFilterStore(FilterStore):
-    """docstring for RandomAccessFilterStore"""
-    def _do_get(self, event):
-        for item in numpy.random.permutation(self.items):
-            if event.filter(item):
-                self.items.remove(item)
-                event.succeed(item)
-                break
-        return True
+# class RandomAccessFilterStore(FilterStore):
+#     """docstring for RandomAccessFilterStore"""
+#     def _do_get(self, event):
+#         for item in numpy.random.permutation(self.items):
+#             if event.filter(item):
+#                 self.items.remove(item)
+#                 event.succeed(item)
+#                 break
+#         return True
 
 
 class Machine(object):

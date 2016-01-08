@@ -11,7 +11,7 @@ from simulator.processes import Scheduler
 logging.basicConfig(level=logging.INFO)
 
 if __name__ == "__main__":
-    numpy.random.seed = RANDOM_SEED
+    numpy.random.seed(seed=RANDOM_SEED)
     # db = sqlalchemy.engine.create_engine(DB_CONNECTION).connect()
     db = None
     env = simpy.Environment()

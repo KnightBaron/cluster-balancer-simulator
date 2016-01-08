@@ -75,7 +75,7 @@ class Scheduler(object):
                                 candidate_higher_task = higher_task
 
                 if (candidate_lower_task is not None) and (candidate_higher_task is not None):
-                    logging.info ("{} => Swapping...".format(self.env.now))
+                    logging.debug ("{} => Swapping...".format(self.env.now))
                     yield self.env.process(lower_machine.remove_task(candidate_lower_task))
                     yield self.env.process(higher_machine.remove_task(candidate_higher_task))
                     yield self.env.process(lower_machine.add_task(candidate_higher_task))
@@ -97,7 +97,7 @@ class Scheduler(object):
             if job["start_time"] > self.env.now:
                 yield self.env.timeout(job["start_time"] - self.env.now)
             job_counter += 1
-            logging.debug("{} => Submit job {}".format(self.env.now, job["job_id"]))
+            logging.info("{} => Submit job {}".format(self.env.now, job["job_id"]))
             logging.debug("{} => Submitted jobs: {}/{}".format(self.env.now, job_counter, TOTAL_JOBS))
             self.job_tracker[job["job_id"]] = False
             self.stats["jobs"] += 1
@@ -124,14 +124,17 @@ class Scheduler(object):
             for machine_id in numpy.random.permutation(TOTAL_MACHINES):
                 if self.machines[machine_id].is_fit(task):
                     task["machine_id"] = machine_id
-                    self.env.process(self.machines[machine_id].add_task(task))
+                    yield self.env.process(self.machines[machine_id].add_task(task))
                     break
             else:
                 commit = False
 
         if commit:
-            logging.info("{} => Commit job {}".format(self.env.now, job["job_id"]))
+            logging.debug("{} => Commit job {}".format(self.env.now, job["job_id"]))
             for task in job["tasks"]:
+                logging.debug("{} => Put T:{}:{} on M:{}".format(
+                    self.env.now, job["job_id"], task["task_index"], task["machine_id"]
+                ))
                 if task["is_service"]:
                     task["job_id"] = job["job_id"]
                     self.task_tracker.append(task)
