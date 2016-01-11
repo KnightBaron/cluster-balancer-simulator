@@ -2,6 +2,7 @@ import logging
 import simpy
 import numpy
 import itertools
+import csv
 from settings import *
 
 
@@ -16,6 +17,7 @@ class Scheduler(object):
         self.job_queue = simpy.Store(env)
         self.producer_proc = env.process(self.producer())
         self.scheduler_proc = env.process(self.scheduler())
+        self.monitor_proc = env.process(self.monitor())
         if ENABLE_TASK_REBALANCING:
             self.rebalancer_proc = env.process(self.rebalancer())
         self.stats = {
@@ -28,6 +30,25 @@ class Scheduler(object):
 
     def get_success_rate(self):
         return float(self.stats["finished_jobs"]) / self.stats["jobs"]
+
+    def monitor(self):
+        """
+        Monitor Process
+
+        Schema: time, machine_id, allocated_cpu, actual_cpu
+        """
+        with open(OUTPUT_FILE, "wb") as output:
+            writer = csv.writer(output)
+            while True:
+                yield self.env.timeout(MONITOR_INTERVAL)
+                for mid in range(len(self.machines)):
+                    writer.writerow([
+                        self.env.now,
+                        mid,
+                        self.machines[mid].allocated_cpu.level,
+                        self.machines[mid].actual_cpu.level,
+                    ])
+                    output.flush()
 
     def rebalancer(self):
         """
@@ -75,11 +96,50 @@ class Scheduler(object):
                                 candidate_higher_task = higher_task
 
                 if (candidate_lower_task is not None) and (candidate_higher_task is not None):
-                    logging.debug ("{} => Swapping...".format(self.env.now))
-                    yield self.env.process(lower_machine.remove_task(candidate_lower_task))
-                    yield self.env.process(higher_machine.remove_task(candidate_higher_task))
-                    yield self.env.process(lower_machine.add_task(candidate_higher_task))
-                    yield self.env.process(higher_machine.add_task(candidate_higher_task))
+                    logging.info("{} => Swapping...".format(self.env.now))
+                    logging.info("{} => M:{} T:{}:{} <=> M:{} T:{}:{}".format(
+                        self.env.now,
+                        candidate_mid_pair[0],
+                        lower_task["job_id"],
+                        lower_task["task_index"],
+                        candidate_mid_pair[1],
+                        higher_task["job_id"],
+                        higher_task["task_index"]
+                    ))
+
+                    logging.info("{} => Lower machine before swapping:{}".format(
+                        self.env.now,
+                        lower_machine
+                    ))
+                    logging.info("{} => Higher machine before swapping:{}".format(
+                        self.env.now,
+                        higher_machine
+                    ))
+
+                    # TODO: Fix negative value
+
+                    # yield self.env.process(lower_machine.remove_task(candidate_lower_task))
+                    # yield self.env.process(higher_machine.remove_task(candidate_higher_task))
+                    # yield self.env.process(lower_machine.add_task(candidate_higher_task))
+                    # yield self.env.process(higher_machine.add_task(candidate_higher_task))
+                    print candidate_lower_task["actual_cpu"],
+                    print candidate_lower_task["allocated_cpu"]
+                    print candidate_higher_task["actual_cpu"],
+                    print candidate_higher_task["allocated_cpu"]
+                    lower_machine.remove_task(candidate_lower_task)
+                    higher_machine.remove_task(candidate_higher_task)
+                    lower_machine.add_task(candidate_higher_task)
+                    higher_machine.add_task(candidate_lower_task)
+
+                    logging.info("{} => Lower machine after swapping:{}".format(
+                        self.env.now,
+                        lower_machine
+                    ))
+                    logging.info("{} => Higher machine after swapping:{}".format(
+                        self.env.now,
+                        higher_machine
+                    ))
+
                     for task in self.task_tracker:
                         if ((task["job_id"] == lower_task["job_id"]) and
                                 (task["task_index"] == lower_task["task_index"])):
@@ -87,6 +147,8 @@ class Scheduler(object):
                         elif ((task["job_id"] == higher_task["job_id"]) and
                                 (task["task_index"] == higher_task["task_index"])):
                             task["machine_id"] = candidate_mid_pair[0]
+
+                    # raw_input()
 
     def producer(self):
         """
@@ -97,8 +159,8 @@ class Scheduler(object):
             if job["start_time"] > self.env.now:
                 yield self.env.timeout(job["start_time"] - self.env.now)
             job_counter += 1
-            logging.info("{} => Submit job {}".format(self.env.now, job["job_id"]))
-            logging.debug("{} => Submitted jobs: {}/{}".format(self.env.now, job_counter, TOTAL_JOBS))
+            logging.debug("{} => Submit job {}".format(self.env.now, job["job_id"]))
+            logging.info("{} => Submitted jobs: {}/{}".format(self.env.now, job_counter, TOTAL_JOBS))
             self.job_tracker[job["job_id"]] = False
             self.stats["jobs"] += 1
             for task in job["tasks"]:
@@ -123,8 +185,12 @@ class Scheduler(object):
         for task in job["tasks"]:
             for machine_id in numpy.random.permutation(TOTAL_MACHINES):
                 if self.machines[machine_id].is_fit(task):
+                    # yield self.env.process(self.machines[machine_id].add_task(task))
+                    logging.debug("{} => Try T:{}:{} on M:{}".format(
+                        self.env.now, job["job_id"], task["task_index"], task["machine_id"]
+                    ))
                     task["machine_id"] = machine_id
-                    yield self.env.process(self.machines[machine_id].add_task(task))
+                    self.machines[machine_id].add_task(task)
                     break
             else:
                 commit = False
@@ -132,7 +198,7 @@ class Scheduler(object):
         if commit:
             logging.debug("{} => Commit job {}".format(self.env.now, job["job_id"]))
             for task in job["tasks"]:
-                logging.debug("{} => Put T:{}:{} on M:{}".format(
+                logging.debug("{} => Commit T:{}:{} on M:{}".format(
                     self.env.now, job["job_id"], task["task_index"], task["machine_id"]
                 ))
                 if task["is_service"]:
@@ -144,8 +210,13 @@ class Scheduler(object):
         else:  # Rollback
             logging.debug("{} => Rollback job {}".format(self.env.now, job["job_id"]))
             for task in job["tasks"]:
+                logging.debug("{} => Remove T:{}:{} on M:{}".format(
+                    self.env.now, job["job_id"], task["task_index"], task["machine_id"]
+                ))
                 if task["machine_id"] is not None:
-                    self.env.process(self.machines[task["machine_id"]].remove_task(task))
+                    # self.env.process(self.machines[task["machine_id"]].remove_task(task))
+                    self.machines[task["machine_id"]].remove_task(task)
+                    task["machine_id"] = None
             yield self.job_queue.put(job)
 
     def execute_task(self, job_id, task):
@@ -155,8 +226,10 @@ class Scheduler(object):
         for stored_task in self.task_tracker:
             if (stored_task["job_id"] == job_id) and (stored_task["task_index"] == task["task_index"]):
                 self.task_tracker.remove(stored_task)
-                self.env.process(self.machines[stored_task["machine_id"]].remove_task(task))
+                # self.env.process(self.machines[stored_task["machine_id"]].remove_task(task))
+                self.machines[stored_task["machine_id"]].remove_task(task)
                 break
         else:
-            self.env.process(self.machines[task["machine_id"]].remove_task(task))
+            # self.env.process(self.machines[task["machine_id"]].remove_task(task))
+            self.machines[task["machine_id"]].remove_task(task)
         self.stats["finished_tasks"] += 1

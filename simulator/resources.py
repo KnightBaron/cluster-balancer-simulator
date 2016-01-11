@@ -15,13 +15,29 @@ from simpy.resources.store import FilterStore
 #         return True
 
 
+class MyContainer(object):
+    """docstring for MyContainer"""
+    def __init__(self, env, init=0, capacity=1):
+        self.env = env
+        self.level = init
+        self.capacity = capacity
+
+    def put(self, value):
+        self.level += value
+
+    def get(self, value):
+        self.level -= value
+
+
 class Machine(object):
     """docstring for Machine"""
     def __init__(self, env, cpu, memory, overcommit_factor=1):
         self.cpu = cpu
         self.adjusted_cpu = cpu * overcommit_factor
-        self.allocated_cpu = simpy.Container(env, init=0.0, capacity=self.adjusted_cpu)
-        self.actual_cpu = simpy.Container(env, init=0.0, capacity=cpu)
+        # self.allocated_cpu = simpy.Container(env, init=0.0, capacity=self.adjusted_cpu)
+        # self.actual_cpu = simpy.Container(env, init=0.0, capacity=cpu)
+        self.allocated_cpu = MyContainer(env, init=0.0, capacity=self.adjusted_cpu)
+        self.actual_cpu = MyContainer(env, init=0.0, capacity=cpu)
         # self.memory = memory
         # self.allocated_memory = simpy.Container(env, init=0.0, capacity=memory)
         # self.actual_memory = simpy.Container(env, init=0.0, capacity=memory)
@@ -51,12 +67,16 @@ class Machine(object):
 
     def add_task(self, task):
         if task["allocated_cpu"] > 0:
-            yield self.allocated_cpu.put(task["allocated_cpu"])
+            # yield self.allocated_cpu.put(task["allocated_cpu"])
+            self.allocated_cpu.put(task["allocated_cpu"])
         if task["actual_cpu"] > 0:
-            yield self.actual_cpu.put(task["actual_cpu"])
+            # yield self.actual_cpu.put(task["actual_cpu"])
+            self.actual_cpu.put(task["actual_cpu"])
 
     def remove_task(self, task):
         if task["allocated_cpu"] > 0:
-            yield self.allocated_cpu.get(task["allocated_cpu"])
+            # yield self.allocated_cpu.get(task["allocated_cpu"])
+            self.allocated_cpu.get(task["allocated_cpu"])
         if task["actual_cpu"] > 0:
-            yield self.actual_cpu.get(task["actual_cpu"])
+            # yield self.actual_cpu.get(task["actual_cpu"])
+            self.actual_cpu.get(task["actual_cpu"])
