@@ -36,19 +36,35 @@ class Scheduler(object):
         Monitor Process
 
         Schema: time, machine_id, allocated_cpu, actual_cpu
+        Consolidated Schema: time, avg_allocated_cpu, avg_actual_cpu
         """
-        with open(OUTPUT_FILE, "wb") as output:
+        with open(OUTPUT_FILE, "wb") as output, open(CONSOLIDATED_OUTPUT_FILE, "wb") as consolidated_output:
             writer = csv.writer(output)
+            consolidated_writer = csv.writer(consolidated_output)
             while True:
                 yield self.env.timeout(MONITOR_INTERVAL)
+                avg_allocated_cpu = 0.0
+                avg_actual_cpu = 0.0
                 for mid in range(len(self.machines)):
+                    allocated_cpu = self.machines[mid].allocated_cpu.level
+                    actual_cpu = self.machines[mid].actual_cpu.level
+                    avg_allocated_cpu += allocated_cpu
+                    avg_actual_cpu += actual_cpu
                     writer.writerow([
                         self.env.now,
                         mid,
-                        self.machines[mid].allocated_cpu.level,
-                        self.machines[mid].actual_cpu.level,
+                        allocated_cpu,
+                        actual_cpu,
                     ])
                     output.flush()
+                avg_allocated_cpu /= len(self.machines)
+                avg_actual_cpu /= len(self.machines)
+                consolidated_writer.writerow([
+                    self.env.now,
+                    avg_allocated_cpu,
+                    avg_actual_cpu,
+                ])
+                consolidated_output.flush()
 
     def rebalancer(self):
         """
