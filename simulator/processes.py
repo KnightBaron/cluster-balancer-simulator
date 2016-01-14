@@ -70,6 +70,27 @@ class Scheduler(object):
         """
         Task Rebalancer Process
         """
+
+        def swappable(lower_task, higher_task, lower_machine, higher_machine):
+            expected_lower_machine_allocated_cpu = \
+                lower_machine.allocated_cpu.level - lower_task["allocated_cpu"] + higher_task["allocated_cpu"]
+            expected_lower_machine_actual_cpu = \
+                lower_machine.actual_cpu.level - lower_task["actual_cpu"] + higher_task["actual_cpu"]
+            expected_higher_machine_allocated_cpu = \
+                higher_machine.allocated_cpu.level - higher_task["allocated_cpu"] + lower_task["allocated_cpu"]
+            expected_higher_machine_actual_cpu = \
+                higher_machine.actual_cpu.level - higher_task["actual_cpu"] + lower_task["actual_cpu"]
+            return (
+                (expected_lower_machine_allocated_cpu >= 0) and
+                (expected_lower_machine_actual_cpu >= 0) and
+                (expected_higher_machine_allocated_cpu >= 0) and
+                (expected_higher_machine_actual_cpu >= 0) and
+                (expected_lower_machine_allocated_cpu <= lower_machine.allocated_cpu.capacity) and
+                (expected_lower_machine_actual_cpu <= lower_machine.actual_cpu.capacity) and
+                (expected_higher_machine_allocated_cpu <= higher_machine.allocated_cpu.capacity) and
+                (expected_higher_machine_actual_cpu <= higher_machine.actual_cpu.capacity)
+            )
+
         while True:
             yield self.env.timeout(REBALANCE_TIME)
 
@@ -102,8 +123,18 @@ class Scheduler(object):
                 candidate_difference = 0
                 if (len(lower_tasks) > 0) and (len(higher_tasks) > 0):
                     for task_pair in itertools.product(lower_tasks, higher_tasks):
+
                         lower_task = task_pair[0]
                         higher_task = task_pair[1]
+
+                        if not swappable(
+                            lower_task,
+                            higher_task,
+                            self.machines[lower_task["machine_id"]],
+                            self.machines[higher_task["machine_id"]],
+                        ):
+                            continue
+
                         if ((lower_task["actual_cpu"] < higher_task["actual_cpu"]) and
                                 (abs(lower_task["allocated_cpu"] - higher_task["allocated_cpu"]) < COMPARABLE_TASK_THRESHOLD)):
                             difference = higher_task["actual_cpu"] - lower_task["actual_cpu"]
