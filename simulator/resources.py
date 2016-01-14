@@ -59,8 +59,8 @@ class Machine(object):
         Compare only CPU for now
         """
         return (
-            ((self.adjusted_cpu - self.allocated_cpu.level) > task["allocated_cpu"]) and
-            ((self.cpu - self.actual_cpu.level) > task["actual_cpu"])
+            ((self.adjusted_cpu - self.allocated_cpu.level) >= task["allocated_cpu"]) and
+            ((self.cpu - self.actual_cpu.level) >= task["actual_cpu"])
             # ((self.memory - self.allocated_memory.level) > task["allocated_memory"]) and
             # ((self.memory - self.actual_memory.level) > task["actual_memory"])
         )
