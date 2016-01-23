@@ -29,4 +29,7 @@ if __name__ == "__main__":
         env.run()
 
     print scheduler.stats
-    print "SUCCESS RATE: {}".format(scheduler.get_success_rate())
+    print "JOB SUCCESS RATE: {}".format(scheduler.get_job_success_rate())
+    print "TASK COMPLETION RATE: {}".format(scheduler.get_task_success_rate())
+    print "SERVICE TASK COMPLETION RATE: {}".format(scheduler.get_service_task_success_rate())
+    print "BATCH TASK COMPLETION RATE: {}".format(scheduler.get_batch_task_success_rate())

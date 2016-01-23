@@ -25,11 +25,35 @@ class Scheduler(object):
             "tasks": 0,
             "finished_jobs": 0,
             "finished_tasks": 0,
+            "finished_batch_tasks": 0,
+            "finished_service_tasks": 0,
             "service_tasks": 0,
+            "batch_tasks": 0,
         }
 
-    def get_success_rate(self):
-        return float(self.stats["finished_jobs"]) / self.stats["jobs"]
+    def get_job_success_rate(self):
+        if self.stats["jobs"] > 0:
+            return float(self.stats["finished_jobs"]) / self.stats["jobs"]
+        else:
+            return 0.0
+
+    def get_task_success_rate(self):
+        if self.stats["tasks"] > 0:
+            return float(self.stats["finished_tasks"]) / self.stats["tasks"]
+        else:
+            return 0.0
+
+    def get_service_task_success_rate(self):
+        if self.stats["service_tasks"] > 0:
+            return float(self.stats["finished_service_tasks"]) / self.stats["service_tasks"]
+        else:
+            return 0.0
+
+    def get_batch_task_success_rate(self):
+        if self.stats["batch_tasks"] > 0:
+            return float(self.stats["finished_batch_tasks"]) / self.stats["batch_tasks"]
+        else:
+            return 0.0
 
     def monitor(self):
         """
@@ -214,6 +238,8 @@ class Scheduler(object):
                 self.stats["tasks"] += 1
                 if task["is_service"]:
                     self.stats["service_tasks"] += 1
+                else:
+                    self.stats["batch_tasks"] += 1
             self.job_queue.put(job)
             # yield self.env.process(self.scheduler())
 
@@ -280,3 +306,7 @@ class Scheduler(object):
             # self.env.process(self.machines[task["machine_id"]].remove_task(task))
             self.machines[task["machine_id"]].remove_task(task)
         self.stats["finished_tasks"] += 1
+        if task["is_service"]:
+            self.stats["finished_service_tasks"] += 1
+        else:
+            self.stats["finished_batch_tasks"] += 1
