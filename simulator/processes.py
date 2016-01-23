@@ -187,16 +187,14 @@ class Scheduler(object):
                         higher_machine
                     ))
 
-                    # TODO: Fix negative value
-
                     # yield self.env.process(lower_machine.remove_task(candidate_lower_task))
                     # yield self.env.process(higher_machine.remove_task(candidate_higher_task))
                     # yield self.env.process(lower_machine.add_task(candidate_higher_task))
                     # yield self.env.process(higher_machine.add_task(candidate_higher_task))
-                    #print candidate_lower_task["actual_cpu"],
-                    #print candidate_lower_task["allocated_cpu"]
-                    #print candidate_higher_task["actual_cpu"],
-                    #print candidate_higher_task["allocated_cpu"]
+                    # print candidate_lower_task["actual_cpu"],
+                    # print candidate_lower_task["allocated_cpu"]
+                    # print candidate_higher_task["actual_cpu"],
+                    # print candidate_higher_task["allocated_cpu"]
                     lower_machine.remove_task(candidate_lower_task)
                     higher_machine.remove_task(candidate_higher_task)
                     lower_machine.add_task(candidate_higher_task)
@@ -290,7 +288,7 @@ class Scheduler(object):
                     # self.env.process(self.machines[task["machine_id"]].remove_task(task))
                     self.machines[task["machine_id"]].remove_task(task)
                     task["machine_id"] = None
-            yield self.job_queue.put(job)
+            self.job_queue.put(job)
 
     def execute_task(self, job_id, task):
         # logging.debug("{} => Start job {} task {}".format(self.env.now, job_id, task["task_index"]))
