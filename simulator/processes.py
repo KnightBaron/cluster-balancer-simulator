@@ -169,10 +169,10 @@ class Scheduler(object):
                     # yield self.env.process(higher_machine.remove_task(candidate_higher_task))
                     # yield self.env.process(lower_machine.add_task(candidate_higher_task))
                     # yield self.env.process(higher_machine.add_task(candidate_higher_task))
-                    print candidate_lower_task["actual_cpu"],
-                    print candidate_lower_task["allocated_cpu"]
-                    print candidate_higher_task["actual_cpu"],
-                    print candidate_higher_task["allocated_cpu"]
+                    #print candidate_lower_task["actual_cpu"],
+                    #print candidate_lower_task["allocated_cpu"]
+                    #print candidate_higher_task["actual_cpu"],
+                    #print candidate_higher_task["allocated_cpu"]
                     lower_machine.remove_task(candidate_lower_task)
                     higher_machine.remove_task(candidate_higher_task)
                     lower_machine.add_task(candidate_higher_task)
