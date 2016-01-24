@@ -23,7 +23,10 @@ class Scheduler(object):
         self.stats = {
             "jobs": 0,
             "tasks": 0,
-            "finished_jobs": 0,
+            "finished_jobs": 0,  # Actually scheduled_jobs
+            "scheduled_tasks": 0,
+            "scheduled_batch_tasks": 0,
+            "scheduled_service_tasks": 0,
             "finished_tasks": 0,
             "finished_batch_tasks": 0,
             "finished_service_tasks": 0,
@@ -39,19 +42,19 @@ class Scheduler(object):
 
     def get_task_success_rate(self):
         if self.stats["tasks"] > 0:
-            return float(self.stats["finished_tasks"]) / self.stats["tasks"]
+            return float(self.stats["scheduled_tasks"]) / self.stats["tasks"]
         else:
             return 0.0
 
     def get_service_task_success_rate(self):
         if self.stats["service_tasks"] > 0:
-            return float(self.stats["finished_service_tasks"]) / self.stats["service_tasks"]
+            return float(self.stats["scheduled_service_tasks"]) / self.stats["service_tasks"]
         else:
             return 0.0
 
     def get_batch_task_success_rate(self):
         if self.stats["batch_tasks"] > 0:
-            return float(self.stats["finished_batch_tasks"]) / self.stats["batch_tasks"]
+            return float(self.stats["scheduled_batch_tasks"]) / self.stats["batch_tasks"]
         else:
             return 0.0
 
@@ -275,6 +278,10 @@ class Scheduler(object):
                 if task["is_service"]:
                     task["job_id"] = job["job_id"]
                     self.task_tracker.append(task)
+                    self.stats["scheduled_service_tasks"] += 1
+                else:
+                    self.stats["scheduled_batch_tasks"] += 1
+                self.stats["scheduled_tasks"] += 1
                 self.env.process(self.execute_task(job["job_id"], task))
             self.job_tracker[job["job_id"]] = True
             self.stats["finished_jobs"] += 1
@@ -288,7 +295,7 @@ class Scheduler(object):
                     # self.env.process(self.machines[task["machine_id"]].remove_task(task))
                     self.machines[task["machine_id"]].remove_task(task)
                     task["machine_id"] = None
-            self.job_queue.put(job)
+            yield self.job_queue.put(job)  # Somehow, yield is required
 
     def execute_task(self, job_id, task):
         # logging.debug("{} => Start job {} task {}".format(self.env.now, job_id, task["task_index"]))
