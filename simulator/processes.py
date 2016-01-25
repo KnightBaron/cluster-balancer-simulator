@@ -58,6 +58,24 @@ class Scheduler(object):
         else:
             return 0.0
 
+    def get_task_completion_rate(self):
+        if self.stats["tasks"] > 0:
+            return float(self.stats["finished_tasks"]) / self.stats["tasks"]
+        else:
+            return 0.0
+
+    def get_service_task_completion_rate(self):
+        if self.stats["service_tasks"] > 0:
+            return float(self.stats["finished_service_tasks"]) / self.stats["service_tasks"]
+        else:
+            return 0.0
+
+    def get_batch_task_completion_rate(self):
+        if self.stats["batch_tasks"] > 0:
+            return float(self.stats["finished_batch_tasks"]) / self.stats["batch_tasks"]
+        else:
+            return 0.0
+
     def monitor(self):
         """
         Monitor Process
