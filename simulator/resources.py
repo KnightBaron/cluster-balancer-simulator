@@ -51,6 +51,12 @@ class Machine(object):
             self.actual_cpu.level, self.actual_cpu.capacity
         )
 
+    def is_allocable(self, task):
+        return ((self.adjusted_cpu - self.allocated_cpu.level) >= task["allocated_cpu"])
+
+    def is_runnable(self, task):
+        return ((self.cpu - self.actual_cpu.level) >= task["actual_cpu"])
+
     def is_fit(self, task):
         """
         Check whether task could fit

@@ -30,6 +30,10 @@ class Scheduler(object):
             "finished_tasks": 0,
             "finished_batch_tasks": 0,
             "finished_service_tasks": 0,
+            "failed_jobs": 0,
+            "failed_tasks": 0,
+            "failed_service_tasks": 0,
+            "failed_batch_tasks": 0,
             "service_tasks": 0,
             "batch_tasks": 0,
         }
@@ -267,22 +271,31 @@ class Scheduler(object):
             yield self.env.timeout(SCHEDULING_TIME)
 
             job = yield self.job_queue.get()
-            yield self.env.process(self.schedule_job(job))
+            self.schedule_job(job)
+            # yield self.env.process(self.schedule_job(job))
         # for _ in range(len(self.job_queue.items)):
         #     job = yield self.job_queue.get()
         #     yield self.env.process(self.schedule_job(job))
 
     def schedule_job(self, job):
         commit = True
+        fail_to_run = False
         for task in job["tasks"]:
             for machine_id in numpy.random.permutation(TOTAL_MACHINES):
-                if self.machines[machine_id].is_fit(task):
-                    # yield self.env.process(self.machines[machine_id].add_task(task))
-                    logging.debug("{} => Try T:{}:{} on M:{}".format(
-                        self.env.now, job["job_id"], task["task_index"], task["machine_id"]
-                    ))
-                    task["machine_id"] = machine_id
-                    self.machines[machine_id].add_task(task)
+                if self.machines[machine_id].is_allocable(task):
+                    if self.machines[machine_id].is_fit(task):
+                        # yield self.env.process(self.machines[machine_id].add_task(task))
+                        logging.debug("{} => Try T:{}:{} on M:{}".format(
+                            self.env.now, job["job_id"], task["task_index"], task["machine_id"]
+                        ))
+                        task["machine_id"] = machine_id
+                        self.machines[machine_id].add_task(task)
+                    else:
+                        logging.debug("{} => Fail to run T:{}:{} on M:{}".format(
+                            self.env.now, job["job_id"], task["task_index"], task["machine_id"]
+                        ))
+                        fail_to_run = True
+                        commit = False
                     break
             else:
                 commit = False
@@ -313,7 +326,16 @@ class Scheduler(object):
                     # self.env.process(self.machines[task["machine_id"]].remove_task(task))
                     self.machines[task["machine_id"]].remove_task(task)
                     task["machine_id"] = None
-            yield self.job_queue.put(job)  # Somehow, yield is required
+                if fail_to_run:
+                    self.stats["failed_tasks"] += 1
+                    if task["is_service"]:
+                        self.stats["failed_service_tasks"] += 1
+                    else:
+                        self.stats["failed_batch_tasks"] += 1
+            if fail_to_run:
+                self.stats["failed_jobs"] += 1
+            else:
+                self.job_queue.put(job)  # yield is required to make it a process
 
     def execute_task(self, job_id, task):
         # logging.debug("{} => Start job {} task {}".format(self.env.now, job_id, task["task_index"]))
