@@ -250,6 +250,9 @@ class Scheduler(object):
         """
         job_counter = 0
         for job in self.job_class.generator():
+            # Sample only part of available trace data
+            if numpy.random.uniform() > JOB_SAMPLE_SIZE:
+                continue
             if job["start_time"] > self.env.now:
                 yield self.env.timeout(job["start_time"] - self.env.now)
             job_counter += 1
