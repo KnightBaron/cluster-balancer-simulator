@@ -253,7 +253,7 @@ class Scheduler(object):
             if job["start_time"] > self.env.now:
                 yield self.env.timeout(job["start_time"] - self.env.now)
             job_counter += 1
-            logging.info("{} => Submit job {}".format(self.env.now, job["job_id"]))
+            # logging.info("{} => Submit job {}".format(self.env.now, job["job_id"]))
             logging.info("{} => Submitted jobs: {}/{}".format(self.env.now, job_counter, TOTAL_JOBS))
             self.job_tracker[job["job_id"]] = False
             self.stats["jobs"] += 1
@@ -301,7 +301,7 @@ class Scheduler(object):
                 commit = False
 
         if commit:
-            logging.debug("{} => Commit job {}".format(self.env.now, job["job_id"]))
+            logging.info("{} => Commit job {}".format(self.env.now, job["job_id"]))
             for task in job["tasks"]:
                 logging.debug("{} => Commit T:{}:{} on M:{}".format(
                     self.env.now, job["job_id"], task["task_index"], task["machine_id"]
