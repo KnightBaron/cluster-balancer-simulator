@@ -304,7 +304,7 @@ class Scheduler(object):
                 commit = False
 
         if commit:
-            logging.info("{} => Commit job {}".format(self.env.now, job["job_id"]))
+            logging.debug("{} => Commit job {}".format(self.env.now, job["job_id"]))
             for task in job["tasks"]:
                 logging.debug("{} => Commit T:{}:{} on M:{}".format(
                     self.env.now, job["job_id"], task["task_index"], task["machine_id"]
