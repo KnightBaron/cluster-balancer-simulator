@@ -323,10 +323,10 @@ class Scheduler(object):
         else:  # Rollback
             logging.debug("{} => Rollback job {}".format(self.env.now, job["job_id"]))
             for task in job["tasks"]:
-                logging.debug("{} => Remove T:{}:{} on M:{}".format(
-                    self.env.now, job["job_id"], task["task_index"], task["machine_id"]
-                ))
                 if task["machine_id"] is not None:
+                    logging.debug("{} => Remove T:{}:{} on M:{}".format(
+                        self.env.now, job["job_id"], task["task_index"], task["machine_id"]
+                    ))
                     # self.env.process(self.machines[task["machine_id"]].remove_task(task))
                     self.machines[task["machine_id"]].remove_task(task)
                     task["machine_id"] = None
