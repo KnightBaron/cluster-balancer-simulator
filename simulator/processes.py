@@ -290,7 +290,7 @@ class Scheduler(object):
                     if self.machines[machine_id].is_fit(task):
                         # yield self.env.process(self.machines[machine_id].add_task(task))
                         logging.debug("{} => Try T:{}:{} on M:{}".format(
-                            self.env.now, job["job_id"], task["task_index"], task["machine_id"]
+                            self.env.now, job["job_id"], task["task_index"], machine_id
                         ))
                         task["machine_id"] = machine_id
                         self.machines[machine_id].add_task(task)
