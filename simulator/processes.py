@@ -157,10 +157,11 @@ class Scheduler(object):
             #         candidate_difference = difference
             #         candidate_mid_pair = mid_pair
 
-            sorted_machines = sorted(self.machines, key=lambda x: x.actual_cpu.level)
-            candidate_mid_pair = [sorted_machines[0], sorted_machines[-1]]
-            candidate_difference = sorted_machines[-1].actual_cpu.level - \
-                sorted_machines[0].actual_cpu.level
+            sorted_machines = zip(range(len(self.machines)), self.machines)
+            sorted_machines.sort(key=lambda x: x[1].actual_cpu.level)
+            candidate_mid_pair = [sorted_machines[0][0], sorted_machines[-1][0]]
+            candidate_difference = sorted_machines[-1][1].actual_cpu.level - \
+                sorted_machines[0][1].actual_cpu.level
 
             if candidate_difference > MACHINE_UTILIZATION_DIFFERENCE_THRESHOLD:
                 lower_machine = self.machines[candidate_mid_pair[0]]
