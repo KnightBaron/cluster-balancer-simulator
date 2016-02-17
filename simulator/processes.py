@@ -144,18 +144,23 @@ class Scheduler(object):
         while True:
             yield self.env.timeout(REBALANCE_TIME)
 
-            candidate_mid_pair = None
-            candidate_difference = 0
+            # candidate_mid_pair = None
+            # candidate_difference = 0
+            #
+            # for mid_pair in itertools.combinations(range(len(self.machines)), 2):
+            #     mid_pair = list(mid_pair)
+            #     mid_pair = sorted(mid_pair, key=lambda x: self.machines[x].actual_cpu.level)
+            #     machine_lower = self.machines[mid_pair[0]]
+            #     machine_higher = self.machines[mid_pair[1]]
+            #     difference = machine_higher.actual_cpu.level - machine_lower.actual_cpu.level
+            #     if difference > candidate_difference:
+            #         candidate_difference = difference
+            #         candidate_mid_pair = mid_pair
 
-            for mid_pair in itertools.combinations(range(len(self.machines)), 2):
-                mid_pair = list(mid_pair)
-                mid_pair = sorted(mid_pair, key=lambda x: self.machines[x].actual_cpu.level)
-                machine_lower = self.machines[mid_pair[0]]
-                machine_higher = self.machines[mid_pair[1]]
-                difference = machine_higher.actual_cpu.level - machine_lower.actual_cpu.level
-                if difference > candidate_difference:
-                    candidate_difference = difference
-                    candidate_mid_pair = mid_pair
+            sorted_machines = sorted(self.machines, key=lambda x: x.actual_cpu.level)
+            candidate_mid_pair = [sorted_machines[0], sorted_machines[-1]]
+            candidate_difference = sorted_machines[-1].actual_cpu.level - \
+                sorted_machines[0].actual_cpu.level
 
             if candidate_difference > MACHINE_UTILIZATION_DIFFERENCE_THRESHOLD:
                 lower_machine = self.machines[candidate_mid_pair[0]]
