@@ -262,10 +262,11 @@ class Scheduler(object):
                 if numpy.random.uniform() > JOB_SAMPLE_SIZE:
                     continue
             # Filter out large jobs
-            if len(job["tasks"]) > MAXIMUM_TASK_PER_JOB:
-                logging.info("{} => Skip job {}".format(self.env.now, job["job_id"]))
-                self.stats["skipped_jobs"] += 1
-                continue
+            if MAXIMUM_TASK_PER_JOB > 0:
+                if len(job["tasks"]) > MAXIMUM_TASK_PER_JOB:
+                    logging.info("{} => Skip job {}".format(self.env.now, job["job_id"]))
+                    self.stats["skipped_jobs"] += 1
+                    continue
             if job["start_time"] > self.env.now:
                 yield self.env.timeout(job["start_time"] - self.env.now)
             job_counter += 1
