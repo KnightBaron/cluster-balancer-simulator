@@ -1,34 +1,30 @@
 import logging
 import csv
 
-HISTOGRAM = "/Users/KnightBaron/duration_hist.csv"
-OUTPUT = "/Users/KnightBaron/duration_cdf.csv"
-# MAX_TASKS = 5442378.0
-MAX_TASKS = 2.346675000000000000e+12
+INPUT = "/Users/KnightBaron/allocation_amount_7days.csv"
+OUTPUT = "/Users/KnightBaron/allocation_cdf_7days.csv"
+MAX_TASKS = 5442378.0
 TOTAL_BUCKET = 10000
-BUCKET_SIZE = 1
 
-SCHEMA = ["task_count", "jobs"]
+SCHEMA = ["task_count", "total_cpu", "total_memory"]
 
 buckets = {}
 for i in range(1, TOTAL_BUCKET + 1):
     buckets[(MAX_TASKS / TOTAL_BUCKET) * i] = 0
-# for i in range(1, TOTAL_BUCKET + 1):
-#     buckets[BUCKET_SIZE * i] = 0
 
-with open(HISTOGRAM) as csvfile:
+with open(INPUT) as csvfile:
     histogram_csv = csv.DictReader(csvfile, SCHEMA)
     for entry in histogram_csv:
         task_count = float(entry["task_count"])
-        jobs = float(entry["jobs"])
+        total_cpu = float(entry["total_cpu"])
         for key in buckets:
             if task_count <= key:
-                buckets[key] += jobs
+                buckets[key] += total_cpu
 
 with open(OUTPUT, "w") as csvfile:
     output = csv.DictWriter(csvfile, SCHEMA)
     for key in buckets:
         output.writerow({
             "task_count": key,
-            "jobs": buckets[key],
+            "total_cpu": buckets[key],
         })
