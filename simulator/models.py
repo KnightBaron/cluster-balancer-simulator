@@ -53,6 +53,7 @@ class GoogleJob(object):
             else:  # Finished loading an entire job, start loading new job
                 yield job
                 job = {
+                    "retries": 0,
                     "job_id": long(entry["job_id"]),
                     "start_time": long(entry["time"]),
                     "tasks": [{
