@@ -29,6 +29,7 @@ class GoogleJob(object):
         for entry in csv:
             if job is None:  # 1st iteration
                 job = {
+                    "retries": 0,
                     "job_id": long(entry["job_id"]),
                     "start_time": long(entry["time"]),
                     "tasks": [{

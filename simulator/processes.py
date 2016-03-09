@@ -24,6 +24,9 @@ class Scheduler(object):
             "jobs": 0,
             "tasks": 0,
             "skipped_jobs": 0,
+            "skipped_tasks": 0,
+            "skipped_service_tasks": 0,
+            "skipped_batch_tasks": 0,
             "finished_jobs": 0,  # Actually scheduled_jobs
             "scheduled_tasks": 0,
             "scheduled_batch_tasks": 0,
@@ -288,6 +291,18 @@ class Scheduler(object):
             yield self.env.timeout(SCHEDULING_TIME)
 
             job = yield self.job_queue.get()
+
+            # Retries counter
+            self.stats["skipped_jobs"] += 1
+            if job["retries"] > MAX_RETRIES:
+                for task in job["tasks"]:
+                    self.stats["skipped_tasks"] += 1
+                    if task["is_service"]:
+                        self.stats["skipped_service_tasks"] += 1
+                    else:
+                        self.stats["skipped_batch_tasks"] += 1
+                continue
+
             self.schedule_job(job)
             # yield self.env.process(self.schedule_job(job))
         # for _ in range(len(self.job_queue.items)):
