@@ -293,8 +293,9 @@ class Scheduler(object):
             job = yield self.job_queue.get()
 
             # Retries counter
-            self.stats["skipped_jobs"] += 1
+            job["retries"] += 1
             if job["retries"] > MAX_RETRIES:
+		    self.stats["skipped_jobs"] += 1
                 for task in job["tasks"]:
                     self.stats["skipped_tasks"] += 1
                     if task["is_service"]:
