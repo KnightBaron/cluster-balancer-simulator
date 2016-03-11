@@ -295,7 +295,7 @@ class Scheduler(object):
             # Retries counter
             job["retries"] += 1
             if job["retries"] > MAX_RETRIES:
-		    self.stats["skipped_jobs"] += 1
+	        self.stats["skipped_jobs"] += 1
                 for task in job["tasks"]:
                     self.stats["skipped_tasks"] += 1
                     if task["is_service"]:
